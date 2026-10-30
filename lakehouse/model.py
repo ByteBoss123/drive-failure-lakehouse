@@ -63,7 +63,8 @@ def train_and_evaluate(df: pd.DataFrame, data_end: str):
     model_caught = pos_rows[pos_rows.score >= thr].serial_number.nunique()
 
     # Ranked baseline: sum of the four SMART error counters (a stronger rule that can rank).
-    counter_sum = test[["smart_5_raw", "smart_187_raw", "smart_197_raw", "smart_198_raw"]].fillna(0).sum(axis=1).to_numpy()
+    counters = ["smart_5_raw", "smart_187_raw", "smart_197_raw", "smart_198_raw"]
+    counter_sum = test[counters].fillna(0).sum(axis=1).to_numpy()
     small_budgets = {}
     for b in (500, 2000):
         mh, mp, mr = _at_budget(y, score, b)

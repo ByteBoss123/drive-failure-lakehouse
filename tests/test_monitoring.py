@@ -1,0 +1,69 @@
+import datetime as dt
+
+import numpy as np
+import pandas as pd
+import pytest
+from pyspark.sql import SparkSession
+
+from lakehouse.monitoring import QUEUE_SIZE, psi, queue_performance_daily, rank_daily, score_drift_daily
+
+
+@pytest.fixture(scope="module")
+def spark():
+    s = (SparkSession.builder.master("local[1]")
+         .config("spark.sql.ansi.enabled", "true")
+         .config("spark.sql.session.timeZone", "UTC").getOrCreate())
+    yield s
+    s.stop()
+
+
+def test_rank_daily_queue_and_ties():
+    d = dt.date(2018, 7, 1)
+    df = pd.DataFrame({"score_date": [d] * 12,
+                       "serial_number": [f"S{i:02d}" for i in range(12)],
+                       "risk_score": [0.95, 0.95] + [0.01 * i for i in range(10)]})
+    df.loc[11, "risk_score"] = 0.99
+    out = rank_daily(df, queue_size=3)
+    q = out[out.in_queue].serial_number.tolist()
+    assert q == ["S11", "S00", "S01"]          # 0.99 first, then the 0.95 tie broken by serial
+    assert out.in_queue.sum() == 3 and out.risk_rank.max() == 12
+
+
+def test_psi_identical_is_zero_and_shift_is_positive():
+    a = [100] * 10
+    assert psi(a, a) == pytest.approx(0.0)
+    assert psi(a, [10] * 5 + [190] * 5) > 0.2
+
+
+def _risk(spark, rows):
+    return spark.createDataFrame(pd.DataFrame(rows))
+
+
+def test_queue_performance_counts_hits_against_labels(spark):
+    d1, d2 = dt.date(2018, 7, 1), dt.date(2018, 7, 2)
+    risk = []
+    for d in (d1, d2):
+        for i in range(QUEUE_SIZE + 5):
+            risk.append({"score_date": d, "serial_number": f"S{i}", "risk_score": 1.0 - i / 100,
+                         "counter_sum": float(i), "in_queue": i < QUEUE_SIZE})
+    gold = [{"date": d1, "serial_number": "S0", "label_fail_7d": 1},
+            {"date": d1, "serial_number": "S14", "label_fail_7d": 1},
+            {"date": d2, "serial_number": "S1", "label_fail_7d": 1}]
+    perf = {r.score_date: r for r in
+            queue_performance_daily(_risk(spark, risk), _risk(spark, gold), d1).collect()}
+    assert list(perf) == [d1]                      # d2 is past the last labeled date
+    assert perf[d1].queue_size == QUEUE_SIZE
+    assert perf[d1].model_hits == 1                # S0 is in the model queue
+    assert perf[d1].rule_hits == 1                 # rule ranks by counter_sum desc: S14 is top
+
+
+def test_score_drift_flags_shifted_day(spark):
+    rng = np.random.default_rng(0)
+    rows = []
+    for k in range(8):
+        d = dt.date(2018, 7, 1) + dt.timedelta(days=k)
+        scores = rng.uniform(0, 0.5, 2000) if k < 7 else rng.uniform(0.5, 1.0, 2000)
+        rows += [{"score_date": d, "serial_number": f"S{i}", "risk_score": float(s)}
+                 for i, s in enumerate(scores)]
+    out = score_drift_daily(_risk(spark, rows), reference_days=7)
+    assert out.drift_alert.tolist() == [False] * 7 + [True]

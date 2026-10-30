@@ -20,8 +20,13 @@ from deltalake import DeltaTable, write_deltalake
 from pyspark.sql import SparkSession
 from pyspark.sql import types as T
 
-from lakehouse.transforms import (RAW_COLS, add_bronze_metadata, bronze_to_silver,
-                                  gold_fleet_daily, silver_to_gold_features)
+from lakehouse.transforms import (
+    RAW_COLS,
+    add_bronze_metadata,
+    bronze_to_silver,
+    gold_fleet_daily,
+    silver_to_gold_features,
+)
 
 ROOT = Path(__file__).parent
 RAW = ROOT / "data" / "raw_daily"

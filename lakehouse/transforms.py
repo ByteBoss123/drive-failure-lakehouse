@@ -86,7 +86,8 @@ def bronze_to_silver(bronze: DataFrame):
     silver = (
         valid.withColumn("_rn", F.row_number().over(w))
              .filter("_rn = 1").drop("_rn", "date_raw")
-             .withColumn("_row_hash", F.sha2(F.concat_ws("|", *[F.coalesce(F.col(c).cast("string"), F.lit("")) for c in ["model", "failure"] + SMART_COLS]), 256))
+             .withColumn("_row_hash", F.sha2(F.concat_ws("|", *[
+                 F.coalesce(F.col(c).cast("string"), F.lit("")) for c in ["model", "failure"] + SMART_COLS]), 256))
     )
     return silver, quarantine
 

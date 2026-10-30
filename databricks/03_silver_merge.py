@@ -4,7 +4,8 @@
 # MAGIC Reads new bronze rows as a stream, applies the shared `bronze_to_silver` rules, appends
 # MAGIC failing rows to a quarantine table, and MERGEs clean rows into silver on
 # MAGIC `(serial_number, date)`. Matched rows update only when their content hash changed, so
-# MAGIC replaying a file is a no-op. Then OPTIMIZE / Z-ORDER, history, and time travel.
+# MAGIC replaying a file is a no-op. `maintenance = yes` also runs the replay check, OPTIMIZE /
+# MAGIC Z-ORDER, history, and time travel.
 
 # COMMAND ----------
 
@@ -12,8 +13,11 @@
 
 # COMMAND ----------
 
+import json
 from pyspark.sql import functions as F
-from lakehouse.transforms import bronze_to_silver
+
+dbutils.widgets.dropdown("maintenance", "no", ["no", "yes"])
+maintenance = dbutils.widgets.get("maintenance") == "yes"
 
 # Create empty target tables with the exact transform output schema.
 empty_silver, empty_quar = bronze_to_silver(spark.table(BRONZE).limit(0))
@@ -47,45 +51,38 @@ q.awaitTermination()
 
 # COMMAND ----------
 
-display(spark.sql(f"""SELECT count(*) AS silver_rows, count(DISTINCT serial_number) AS drives,
-                             sum(failure) AS failures, min(date) AS first_day, max(date) AS last_day
-                      FROM {SILVER}"""))
-display(spark.sql(f"SELECT dq_reason, count(*) AS rows FROM {QUARANTINE} GROUP BY dq_reason"))
+s = spark.sql(f"""SELECT count(*) AS n, count(DISTINCT serial_number) AS drives,
+                         sum(failure) AS failures FROM {SILVER}""").first()
+quar = spark.sql(f"SELECT count(*) AS n FROM {QUARANTINE}").first().n
+out = {"silver_rows": s.n, "drives": s.drives, "failures": s.failures, "quarantine_rows": quar}
 
 # COMMAND ----------
 
-# MAGIC %md ## Idempotency check: replay one September day straight from bronze
-
-# COMMAND ----------
-
-REPLAY_DAY = "2018-09-15"
-replay = spark.table(BRONZE).filter(F.col("_source_file").endswith(f"{REPLAY_DAY}.csv"))
-if replay.limit(1).count():
+if maintenance:
+    REPLAY_DAY = "2018-09-15"
+    replay = spark.table(BRONZE).filter(F.col("_source_file").endswith(f"{REPLAY_DAY}.csv"))
     silver_replay, _ = bronze_to_silver(replay)
     silver_replay.createOrReplaceTempView("silver_updates")
     spark.sql(MERGE_SQL)
-    display(spark.sql(f"DESCRIBE HISTORY {SILVER} LIMIT 1")
-            .select("version", "operation", "operationMetrics.numSourceRows",
-                    "operationMetrics.numTargetRowsInserted", "operationMetrics.numTargetRowsUpdated"))
-else:
-    print(f"{REPLAY_DAY} not ingested yet; run 02 with next_day/all_remaining first")
+    h = spark.sql(f"DESCRIBE HISTORY {SILVER} LIMIT 1").first()
+    out["replay"] = {"day": REPLAY_DAY, "operation": h.operation,
+                     "source_rows": h.operationMetrics.get("numSourceRows"),
+                     "inserted": h.operationMetrics.get("numTargetRowsInserted"),
+                     "updated": h.operationMetrics.get("numTargetRowsUpdated")}
 
-# COMMAND ----------
+    files_before = spark.sql(f"DESCRIBE DETAIL {SILVER}").first().numFiles
+    spark.sql(f"OPTIMIZE {SILVER} ZORDER BY (serial_number)")
+    files_after = spark.sql(f"DESCRIBE DETAIL {SILVER}").first().numFiles
+    out["optimize"] = {"files_before": files_before, "files_after": files_after}
 
-# MAGIC %md ## OPTIMIZE + Z-ORDER, history, time travel
+    hist = spark.sql(f"DESCRIBE HISTORY {SILVER}")
+    first_merge = hist.filter("operation = 'MERGE'").orderBy("version").first().version
+    out["history"] = [(r.version, r.operation) for r in hist.orderBy("version").collect()]
+    out["time_travel"] = {
+        "first_merge_version": first_merge,
+        "rows_at_first_merge": spark.sql(f"SELECT count(*) AS n FROM {SILVER} VERSION AS OF {first_merge}").first().n,
+        "rows_now": spark.table(SILVER).count(),
+    }
 
-# COMMAND ----------
-
-display(spark.sql(f"OPTIMIZE {SILVER} ZORDER BY (serial_number)"))
-
-# COMMAND ----------
-
-hist = spark.sql(f"DESCRIBE HISTORY {SILVER}").select("version", "timestamp", "operation", "operationMetrics")
-display(hist)
-
-# COMMAND ----------
-
-first_merge = (hist.filter("operation = 'MERGE'").agg(F.min("version")).first()[0])
-display(spark.sql(f"""
-  SELECT (SELECT count(*) FROM {SILVER} VERSION AS OF {first_merge}) AS rows_after_first_merge,
-         (SELECT count(*) FROM {SILVER}) AS rows_now"""))
+print(json.dumps(out, default=str, indent=2))
+dbutils.notebook.exit(json.dumps(out, default=str))

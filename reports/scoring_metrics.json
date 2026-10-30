@@ -1,0 +1,14 @@
+{
+  "score_days": 92,
+  "risk_rows": 2368010,
+  "queue_size_per_day": 10,
+  "labeled_days": 86,
+  "last_labeled_date": "2018-09-24",
+  "queued_drive_days": 860,
+  "model_queue_hits": 188,
+  "rule_queue_hits": 29,
+  "model_queue_precision": 0.2186046511627907,
+  "rule_queue_precision": 0.03372093023255814,
+  "max_psi": 0.12890972030333755,
+  "drift_alert_days": 0
+}

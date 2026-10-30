@@ -1,0 +1,25 @@
+{
+  "name": "drive-lakehouse-daily",
+  "description": "Daily: ingest new SMART file -> silver MERGE -> gold features -> score drives -> monitoring.",
+  "max_concurrent_runs": 1,
+  "schedule": {
+    "quartz_cron_expression": "0 30 6 * * ?",
+    "timezone_id": "America/New_York",
+    "pause_status": "UNPAUSED"
+  },
+  "tasks": [
+    {"task_key": "bronze_ingest",
+     "notebook_task": {"notebook_path": "/Users/amarnathreddyganta5@gmail.com/drive-lakehouse/02_bronze_autoloader",
+                       "base_parameters": {"batch": "next_day"}}},
+    {"task_key": "silver_merge", "depends_on": [{"task_key": "bronze_ingest"}],
+     "notebook_task": {"notebook_path": "/Users/amarnathreddyganta5@gmail.com/drive-lakehouse/03_silver_merge",
+                       "base_parameters": {"maintenance": "no"}}},
+    {"task_key": "gold_features", "depends_on": [{"task_key": "silver_merge"}],
+     "notebook_task": {"notebook_path": "/Users/amarnathreddyganta5@gmail.com/drive-lakehouse/04_gold"}},
+    {"task_key": "score_drives", "depends_on": [{"task_key": "gold_features"}],
+     "notebook_task": {"notebook_path": "/Users/amarnathreddyganta5@gmail.com/drive-lakehouse/08_score_daily",
+                       "base_parameters": {"mode": "latest"}}},
+    {"task_key": "monitor", "depends_on": [{"task_key": "score_drives"}],
+     "notebook_task": {"notebook_path": "/Users/amarnathreddyganta5@gmail.com/drive-lakehouse/09_monitor"}}
+  ]
+}

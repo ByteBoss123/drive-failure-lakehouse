@@ -10,14 +10,12 @@
 
 # COMMAND ----------
 
-from lakehouse.transforms import gold_fleet_daily, silver_to_gold_features
-
 silver = spark.table(SILVER)
 silver_to_gold_features(silver).write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(GOLD_FEATURES)
 gold_fleet_daily(silver).write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(GOLD_FLEET)
 
 # COMMAND ----------
 
-display(spark.sql(f"""SELECT count(*) AS feature_rows, sum(label_fail_7d) AS positive_rows
-                      FROM {GOLD_FEATURES}"""))
-display(spark.table(GOLD_FLEET).orderBy("date"))
+r = spark.sql(f"SELECT count(*) AS n, sum(label_fail_7d) AS pos FROM {GOLD_FEATURES}").first()
+f = spark.sql(f"SELECT count(*) AS days, sum(failures) AS failures FROM {GOLD_FLEET}").first()
+dbutils.notebook.exit(f"gold_feature_rows={r.n} positive_rows={r.pos} fleet_days={f.days} fleet_failures={f.failures}")

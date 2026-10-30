@@ -5,8 +5,8 @@
 # MAGIC Auto Loader ingests only files it has not seen before (`trigger(availableNow=True)`).
 # MAGIC Every column stays a string in bronze; lineage columns record the source file and load time.
 # MAGIC
-# MAGIC Run order: `batch = initial` once (Jan to Aug), then `next_day` for each September day
-# MAGIC (or `all_remaining`). Rerunning a batch ingests nothing new: the checkpoint tracks files.
+# MAGIC `batch`: `initial` lands Jan to Aug, `next_day` lands one more day (the daily job),
+# MAGIC `all_remaining` lands everything left. Reruns ingest nothing new: the checkpoint tracks files.
 
 # COMMAND ----------
 
@@ -14,7 +14,7 @@
 
 # COMMAND ----------
 
-dbutils.widgets.dropdown("batch", "initial", ["initial", "next_day", "all_remaining"])
+dbutils.widgets.dropdown("batch", "next_day", ["initial", "next_day", "all_remaining"])
 batch = dbutils.widgets.get("batch")
 
 archive = sorted(f for f in os.listdir(ARCHIVE) if f.endswith(".csv"))
@@ -33,7 +33,6 @@ print(f"landed {len(to_land)} file(s): {to_land[:1]} .. {to_land[-1:]}")
 # COMMAND ----------
 
 from pyspark.sql import types as T
-from lakehouse.transforms import RAW_COLS, add_bronze_metadata
 
 schema = T.StructType([T.StructField(c, T.StringType()) for c in RAW_COLS])
 stream = (spark.readStream.format("cloudFiles")
@@ -49,6 +48,6 @@ q.awaitTermination()
 
 # COMMAND ----------
 
-display(spark.sql(f"""
-  SELECT count(*) AS bronze_rows, count(DISTINCT _source_file) AS files
-  FROM {BRONZE}"""))
+r = spark.sql(f"SELECT count(*) AS n, count(DISTINCT _source_file) AS files FROM {BRONZE}").first()
+print(f"bronze rows={r.n} files={r.files}")
+dbutils.notebook.exit(f"batch={batch} landed={len(to_land)} bronze_rows={r.n} bronze_files={r.files}")

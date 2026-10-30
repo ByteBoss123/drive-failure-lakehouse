@@ -2,7 +2,7 @@
 # MAGIC %md
 # MAGIC # 01 Setup: schema, Volume, and raw data download
 # MAGIC Downloads the 273 daily Backblaze SMART snapshots (ST4000DM000, 2018-01-01 to 2018-09-30)
-# MAGIC into a Unity Catalog Volume and checks each file's SHA-256 against `data/raw_manifest.csv`.
+# MAGIC into a Unity Catalog Volume and checks a combined SHA-256 digest against the local manifest (`raw_manifest` notebook).
 # MAGIC
 # MAGIC If the download cell fails because outbound internet is blocked, upload the CSVs to
 # MAGIC `/Volumes/workspace/drive_lakehouse/raw/archive/` through Catalog Explorer and rerun the
@@ -21,27 +21,25 @@ for p in (ARCHIVE, LANDING, CHECKPOINTS):
 
 # COMMAND ----------
 
-import csv
 import hashlib
 import urllib.request
 
-with open(os.path.join(REPO_ROOT, "data", "raw_manifest.csv")) as f:
-    manifest = {r["file"]: r["sha256"] for r in csv.DictReader(f)}
-
 downloaded = 0
-for name in sorted(manifest):
+for name in MANIFEST_FILES:
     dest = os.path.join(ARCHIVE, name)
     if os.path.exists(dest):
         continue
-    with urllib.request.urlopen(SOURCE_URL.format(day=name[:-4]), timeout=120) as r, open(dest, "wb") as out:
-        out.write(r.read())
+    with urllib.request.urlopen(SOURCE_URL.format(day=name[:-4]), timeout=120) as r:
+        data = r.read()
+    with open(dest, "wb") as out:
+        out.write(data)
     downloaded += 1
 print("downloaded", downloaded, "files")
 
 # COMMAND ----------
 
-bad = [n for n in sorted(manifest)
-       if hashlib.sha256(open(os.path.join(ARCHIVE, n), "rb").read()).hexdigest() != manifest[n]]
-present = len([n for n in manifest if os.path.exists(os.path.join(ARCHIVE, n))])
-print(f"{present}/{len(manifest)} files present, checksum mismatches: {len(bad)}")
-assert present == len(manifest) and not bad, bad[:5]
+hashes = [hashlib.sha256(open(os.path.join(ARCHIVE, n), "rb").read()).hexdigest() for n in MANIFEST_FILES]
+digest = hashlib.sha256("".join(hashes).encode()).hexdigest()
+print(f"{len(hashes)} files hashed; combined digest matches reference: {digest == MANIFEST_DIGEST}")
+assert digest == MANIFEST_DIGEST
+dbutils.notebook.exit(f"files={len(hashes)} digest_ok={digest == MANIFEST_DIGEST} downloaded={downloaded}")

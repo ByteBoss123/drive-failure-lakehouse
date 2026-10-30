@@ -1,12 +1,11 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # Config (run by every notebook with `%run ./00_config`)
-# MAGIC Unity Catalog names, Volume paths, and the shared `lakehouse` package from this Git folder.
+# MAGIC Unity Catalog names, Volume paths, and the shared transform, model and monitoring code.
 
 # COMMAND ----------
 
 import os
-import sys
 
 CATALOG = "workspace"            # default catalog on Databricks Free Edition
 SCHEMA = "drive_lakehouse"
@@ -21,14 +20,35 @@ SILVER = f"{NS}.silver_smart"
 QUARANTINE = f"{NS}.silver_quarantine"
 GOLD_FEATURES = f"{NS}.gold_drive_features"
 GOLD_FLEET = f"{NS}.gold_fleet_daily"
+RISK = f"{NS}.gold_drive_risk_daily"
+MON_DQ = f"{NS}.monitor_dq_daily"
+MON_SCORE = f"{NS}.monitor_score_daily"
+MON_QUEUE = f"{NS}.monitor_queue_daily"
+MON_RUNS = f"{NS}.monitor_run_log"
 MODEL_NAME = f"{NS}.drive_failure_7d"
-
-# Make the repo root importable (this notebook lives in <repo>/databricks/).
-REPO_ROOT = os.path.dirname(os.getcwd())
-if REPO_ROOT not in sys.path:
-    sys.path.insert(0, REPO_ROOT)
+EXPERIMENT = "/Users/amarnathreddyganta5@gmail.com/drive-lakehouse/drive_failure_7d"
 
 SOURCE_COMMIT = "d7e8e5968a5a01b23fdf58864ddef1a42ffe97dc"
 SOURCE_URL = ("https://raw.githubusercontent.com/Phillweston/Disk-Failure-Prediction/"
               f"{SOURCE_COMMIT}/data_preprocess/{{day}}.csv")
-print("namespace:", NS, "| repo root:", REPO_ROOT)
+print("namespace:", NS)
+
+# COMMAND ----------
+
+# MAGIC %run ./lakehouse_transforms
+
+# COMMAND ----------
+
+# MAGIC %run ./lakehouse_model
+
+# COMMAND ----------
+
+# MAGIC %run ./lakehouse_monitoring
+
+# COMMAND ----------
+
+# MAGIC %run ./raw_manifest
+
+# COMMAND ----------
+
+# MAGIC %run ./reference_metrics

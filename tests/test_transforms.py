@@ -2,10 +2,8 @@ import datetime as dt
 
 import pytest
 from pyspark.sql import SparkSession
-from pyspark.sql import functions as F
 
-from lakehouse.transforms import (SMART_COLS, bronze_to_silver, gold_fleet_daily,
-                                  silver_to_gold_features)
+from lakehouse.transforms import SMART_COLS, bronze_to_silver, gold_fleet_daily, silver_to_gold_features
 
 
 @pytest.fixture(scope="module")
