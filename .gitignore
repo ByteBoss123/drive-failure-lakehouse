@@ -1,0 +1,11 @@
+data/raw_daily
+lake/
+lake_tmp/
+mlruns/
+spark-warehouse/
+metastore_db/
+derby.log
+reports_run.log
+__pycache__/
+.pytest_cache/
+mlflow.db
