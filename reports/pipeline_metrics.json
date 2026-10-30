@@ -1,0 +1,256 @@
+{
+  "source_files": 273,
+  "initial_files": 243,
+  "incremental_files": 30,
+  "initial": {
+    "bronze_rows": 7088609,
+    "silver_rows": 7088512,
+    "quarantined_rows": 97,
+    "seconds": 137.9
+  },
+  "silver_version_after_initial": 0,
+  "incremental_merges": [
+    {
+      "day": "2018-09-01",
+      "bronze_rows": 25073,
+      "quarantined": 0,
+      "inserted": 25073,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-02",
+      "bronze_rows": 25073,
+      "quarantined": 0,
+      "inserted": 25073,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-03",
+      "bronze_rows": 25073,
+      "quarantined": 0,
+      "inserted": 25073,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-04",
+      "bronze_rows": 25073,
+      "quarantined": 0,
+      "inserted": 25073,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-05",
+      "bronze_rows": 25069,
+      "quarantined": 0,
+      "inserted": 25069,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-06",
+      "bronze_rows": 25067,
+      "quarantined": 0,
+      "inserted": 25067,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-07",
+      "bronze_rows": 25108,
+      "quarantined": 0,
+      "inserted": 25108,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-08",
+      "bronze_rows": 25107,
+      "quarantined": 0,
+      "inserted": 25107,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-09",
+      "bronze_rows": 25016,
+      "quarantined": 0,
+      "inserted": 25016,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-10",
+      "bronze_rows": 25015,
+      "quarantined": 0,
+      "inserted": 25015,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-11",
+      "bronze_rows": 25013,
+      "quarantined": 0,
+      "inserted": 25013,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-12",
+      "bronze_rows": 24928,
+      "quarantined": 0,
+      "inserted": 24928,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-13",
+      "bronze_rows": 24927,
+      "quarantined": 0,
+      "inserted": 24927,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-14",
+      "bronze_rows": 24877,
+      "quarantined": 0,
+      "inserted": 24877,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-15",
+      "bronze_rows": 24874,
+      "quarantined": 0,
+      "inserted": 24874,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-16",
+      "bronze_rows": 24872,
+      "quarantined": 0,
+      "inserted": 24872,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-17",
+      "bronze_rows": 24872,
+      "quarantined": 0,
+      "inserted": 24872,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-18",
+      "bronze_rows": 24870,
+      "quarantined": 0,
+      "inserted": 24870,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-19",
+      "bronze_rows": 24869,
+      "quarantined": 0,
+      "inserted": 24869,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-20",
+      "bronze_rows": 24869,
+      "quarantined": 0,
+      "inserted": 24869,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-21",
+      "bronze_rows": 24868,
+      "quarantined": 0,
+      "inserted": 24868,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-22",
+      "bronze_rows": 24867,
+      "quarantined": 0,
+      "inserted": 24867,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-23",
+      "bronze_rows": 24865,
+      "quarantined": 0,
+      "inserted": 24865,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-24",
+      "bronze_rows": 24864,
+      "quarantined": 0,
+      "inserted": 24864,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-25",
+      "bronze_rows": 24863,
+      "quarantined": 0,
+      "inserted": 24863,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-26",
+      "bronze_rows": 24773,
+      "quarantined": 0,
+      "inserted": 24773,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-27",
+      "bronze_rows": 24772,
+      "quarantined": 0,
+      "inserted": 24772,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-28",
+      "bronze_rows": 24650,
+      "quarantined": 0,
+      "inserted": 24650,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-29",
+      "bronze_rows": 24522,
+      "quarantined": 0,
+      "inserted": 24522,
+      "updated": 0
+    },
+    {
+      "day": "2018-09-30",
+      "bronze_rows": 24308,
+      "quarantined": 0,
+      "inserted": 24308,
+      "updated": 0
+    }
+  ],
+  "incremental_inserted_total": 746997,
+  "replay": {
+    "day": "2018-09-15",
+    "source_rows": 24874,
+    "inserted": 0,
+    "updated": 0
+  },
+  "optimize": {
+    "files_before": 36,
+    "files_after": 4,
+    "files_added": 4,
+    "files_removed": 36
+  },
+  "time_travel": {
+    "version_after_initial": 0,
+    "rows_at_that_version": 7088512,
+    "rows_now": 7835509,
+    "current_version": 31
+  },
+  "vacuum_dry_run_files": 36,
+  "silver_rows": 7835509,
+  "silver_drives": 32164,
+  "silver_failures": 460,
+  "gold_feature_rows": 7835509,
+  "gold_positive_label_rows": 3143,
+  "quarantine_rows_appended": 97,
+  "quarantine_by_reason": {
+    "missing_power_on_hours": 97
+  },
+  "quarantine_unique_rows": 97,
+  "bronze_rows_total": 7860480,
+  "bronze_versions": 32
+}

@@ -1,0 +1,29 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install
+        run: pip install -r requirements.txt ruff
+      - name: Lint
+        run: ruff check lakehouse tests scripts
+      - name: Generated Databricks notebooks match lakehouse/ source
+        run: python scripts/build_shared_notebooks.py --check
+      - name: Job definition is valid JSON with a full dependency chain
+        run: python scripts/check_job.py jobs/daily_pipeline.json
+      - name: Unit tests (PySpark local mode)
+        run: python -m pytest -q tests
