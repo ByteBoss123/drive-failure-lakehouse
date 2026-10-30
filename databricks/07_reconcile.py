@@ -34,7 +34,17 @@ if spark.catalog.tableExists(MON_QUEUE):
     risk = spark.table(RISK).filter(F.col("score_date") >= TRAIN_END)
     q = spark.table(MON_QUEUE).agg(F.sum("queue_size").alias("q"), F.sum("model_hits").alias("m"),
                                    F.sum("rule_hits").alias("r"), F.count("*").alias("d")).first()
+    last_lab = F.lit(REF_SCORING["last_labeled_date"]).cast("date")
+    lab = (risk.filter(F.col("score_date") <= last_lab)
+               .join(gold.select(F.col("date").alias("score_date"), "serial_number", "label_fail_7d"),
+                     ["score_date", "serial_number"]))
+
+    def caught(col):
+        return lab.filter(F.col(col) & (F.col("label_fail_7d") == 1)).select("serial_number").distinct().count()
+
     checks += [
+        ("model_failed_drives_caught", REF_SCORING["model_drive_level"]["failed_drives_caught"], caught("in_queue")),
+        ("rule_failed_drives_caught", REF_SCORING["rule_drive_level"]["failed_drives_caught"], caught("rule_in_queue")),
         ("score_days", REF_SCORING["score_days"], risk.select("score_date").distinct().count()),
         ("risk_rows", REF_SCORING["risk_rows"], risk.count()),
         ("labeled_days", REF_SCORING["labeled_days"], q.d),

@@ -24,11 +24,21 @@ SMART_COLS = [
 RAW_COLS = ["serial_number", "date", "model", "failure"] + SMART_COLS
 # SMART counters Backblaze reports as the strongest failure signals
 ERROR_COUNTERS = ["smart_5_raw", "smart_187_raw", "smart_197_raw", "smart_198_raw"]
+# Features the production model uses (v1, selected on the May-June validation window).
 FEATURE_COLS = (
     ["smart_9_raw", "smart_194_raw", "smart_188_raw", "smart_193_raw"]
     + ERROR_COUNTERS
     + [f"{c}_delta_7d" for c in ERROR_COUNTERS]
     + ["temp_mean_7d", "any_error_counter_nonzero"]
+)
+FEATURE_COLS_V1 = FEATURE_COLS
+# v2 candidate: adds 30-day error trends and how persistently errors appeared. Evaluated in
+# select_model.py and not selected (it did not catch more failing drives on validation).
+FEATURE_COLS_V2 = (
+    FEATURE_COLS_V1
+    + [f"{c}_delta_30d" for c in ERROR_COUNTERS]
+    + ["counter_sum", "counter_sum_delta_7d", "smart_188_raw_delta_7d",
+       "error_days_7d", "error_days_30d", "days_since_first_error", "temp_max_7d"]
 )
 LABEL_HORIZON_DAYS = 7
 
@@ -96,15 +106,28 @@ def silver_to_gold_features(silver: DataFrame) -> DataFrame:
     """Per drive-day features plus the 7-day-ahead failure label."""
     day = F.datediff(F.col("date"), F.lit("1970-01-01"))
     w7 = Window.partitionBy("serial_number").orderBy(day).rangeBetween(-(LABEL_HORIZON_DAYS - 1), 0)
+    w30 = Window.partitionBy("serial_number").orderBy(day).rangeBetween(-29, 0)
+    w_all = Window.partitionBy("serial_number").orderBy(day).rangeBetween(Window.unboundedPreceding, 0)
     fail_date = (silver.filter("failure = 1").groupBy("serial_number")
                        .agg(F.min("date").alias("failure_date")))
     feats = silver.select("serial_number", "date", "model", "failure", *SMART_COLS)
     for c in ERROR_COUNTERS:
-        feats = feats.withColumn(f"{c}_delta_7d", F.col(c) - F.min(c).over(w7))
+        feats = (feats.withColumn(f"{c}_delta_7d", F.col(c) - F.min(c).over(w7))
+                      .withColumn(f"{c}_delta_30d", F.col(c) - F.min(c).over(w30)))
+    err = F.greatest(*[(F.col(c) > 0).cast("int") for c in ERROR_COUNTERS])
+    csum = sum(F.coalesce(F.col(c), F.lit(0.0)) for c in ERROR_COUNTERS)
     feats = (
         feats.withColumn("temp_mean_7d", F.avg("smart_194_raw").over(w7))
-             .withColumn("any_error_counter_nonzero",
-                         F.greatest(*[(F.col(c) > 0).cast("int") for c in ERROR_COUNTERS]))
+             .withColumn("temp_max_7d", F.max("smart_194_raw").over(w7))
+             .withColumn("any_error_counter_nonzero", err)
+             .withColumn("counter_sum", csum)
+             .withColumn("counter_sum_delta_7d", F.col("counter_sum") - F.min("counter_sum").over(w7))
+             .withColumn("smart_188_raw_delta_7d", F.col("smart_188_raw") - F.min("smart_188_raw").over(w7))
+             .withColumn("error_days_7d", F.sum("any_error_counter_nonzero").over(w7))
+             .withColumn("error_days_30d", F.sum("any_error_counter_nonzero").over(w30))
+             .withColumn("days_since_first_error",
+                         F.coalesce(day - F.min(F.when(F.col("any_error_counter_nonzero") == 1, day)).over(w_all),
+                                    F.lit(-1)))
              .join(fail_date, "serial_number", "left")
              .withColumn("days_to_failure", F.datediff("failure_date", "date"))
              .withColumn("label_fail_7d",

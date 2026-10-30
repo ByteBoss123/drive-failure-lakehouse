@@ -12,11 +12,18 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.metrics import average_precision_score, roc_auc_score
 
 
-TRAIN_END = "2018-07-01"          # train: dates before this
+TRAIN_END = "2018-07-01"          # test starts here
+VAL_START = "2018-05-01"          # validation window for model selection: May to Jun
 NEG_SAMPLE_PCT = 5                # negatives with sample_bucket < 5 (deterministic hash)
 SEED = 42
-PARAMS = dict(max_iter=300, learning_rate=0.05, max_leaf_nodes=31,
+# Selected on the May-June validation window only (see select_model.py and reports/selection.json).
+PARAMS = dict(max_iter=300, learning_rate=0.05, max_leaf_nodes=15,
               l2_regularization=1.0, random_state=SEED)
+
+
+def embargo_end(start: str) -> pd.Timestamp:
+    """Last training date whose 7-day label is fully observed before `start`."""
+    return pd.Timestamp(start) - pd.Timedelta(days=LABEL_HORIZON_DAYS)
 
 
 def split(df: pd.DataFrame, data_end: str):
@@ -29,7 +36,9 @@ def split(df: pd.DataFrame, data_end: str):
     df = df.sort_values(["serial_number", "date"], kind="stable").reset_index(drop=True)
     last_labeled = pd.Timestamp(data_end) - pd.Timedelta(days=LABEL_HORIZON_DAYS - 1)
     df = df[df["date"] <= last_labeled]
-    train = df[df["date"] < TRAIN_END]
+    # Embargo: a training row's label looks 7 days ahead, so rows within 7 days of the test
+    # start would carry knowledge of test-period failures. Train only on fully resolved labels.
+    train = df[df["date"] <= embargo_end(TRAIN_END)]
     test = df[df["date"] >= TRAIN_END]
     pos = train[train.label_fail_7d == 1]
     neg = train[(train.label_fail_7d == 0) & (train.sample_bucket < NEG_SAMPLE_PCT)]
@@ -42,13 +51,14 @@ def _at_budget(y, score, k):
     return hits, hits / k, hits / int(y.sum())
 
 
-def train_and_evaluate(df: pd.DataFrame, data_end: str):
+def train_and_evaluate(df: pd.DataFrame, data_end: str, feature_cols=None, params=None):
+    feature_cols = feature_cols or FEATURE_COLS
     train, test, last_labeled = split(df, data_end)
-    model = HistGradientBoostingClassifier(**PARAMS)
-    model.fit(train[FEATURE_COLS], train["label_fail_7d"])
+    model = HistGradientBoostingClassifier(**(params or PARAMS))
+    model.fit(train[feature_cols], train["label_fail_7d"])
 
     y = test["label_fail_7d"].to_numpy()
-    score = model.predict_proba(test[FEATURE_COLS])[:, 1]
+    score = model.predict_proba(test[feature_cols])[:, 1]
     rule = test["any_error_counter_nonzero"].to_numpy()
     k = int(rule.sum())
     rule_hits = int(y[rule == 1].sum())
@@ -91,4 +101,5 @@ def train_and_evaluate(df: pd.DataFrame, data_end: str):
     for b, (mp, mr, cp, cr) in small_budgets.items():
         metrics.update({f"model_precision_top{b}": mp, f"model_recall_top{b}": mr,
                         f"counter_sum_precision_top{b}": cp, f"counter_sum_recall_top{b}": cr})
+    metrics["test_scores"] = test.assign(score=score)[["serial_number", "date", "score", "label_fail_7d"]]
     return model, metrics

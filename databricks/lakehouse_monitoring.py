@@ -11,6 +11,7 @@ from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 
 QUEUE_SIZE = 10                 # drives the ops team can inspect per day
+COOLDOWN_DAYS = 7               # a queued drive is not re-queued for this many days (it was just inspected)
 PSI_BINS = 10
 PSI_ALERT = 0.2                 # common rule of thumb: > 0.2 is a material shift
 QUARANTINE_RATE_ALERT = 0.001   # alert if > 0.1% of a day's rows are rejected
@@ -19,7 +20,8 @@ QUARANTINE_RATE_ALERT = 0.001   # alert if > 0.1% of a day's rows are rejected
 COUNTERS = ["smart_5_raw", "smart_187_raw", "smart_197_raw", "smart_198_raw"]
 
 
-def score_frame(features: pd.DataFrame, model, feature_cols, model_version: str) -> pd.DataFrame:
+def score_frame(features: pd.DataFrame, model, feature_cols, model_version: str,
+                recent_model: dict = None, recent_rule: dict = None) -> pd.DataFrame:
     """Score drive-days and build the daily risk table (one row per drive per day)."""
     f = features.sort_values(["date", "serial_number"], kind="stable").reset_index(drop=True)
     scored = pd.DataFrame({
@@ -30,19 +32,55 @@ def score_frame(features: pd.DataFrame, model, feature_cols, model_version: str)
         "rule_flag": f["any_error_counter_nonzero"].fillna(0).astype("int32"),
     })
     scored["model_version"] = str(model_version)
-    return rank_daily(scored)
+    return rank_daily(scored, recent_model=recent_model, recent_rule=recent_rule)
 
 
-def rank_daily(scored: pd.DataFrame, queue_size: int = QUEUE_SIZE) -> pd.DataFrame:
-    """Rank drives within each score_date; the top `queue_size` form the replacement queue.
+def build_queue(df: pd.DataFrame, score_col: str, queue_size: int = QUEUE_SIZE,
+                cooldown_days: int = COOLDOWN_DAYS, recent: dict = None) -> pd.Series:
+    """Daily queue: the top `queue_size` drives by `score_col`, skipping any drive queued in the
+    previous `cooldown_days` days. `recent` maps serial_number -> last queued date (for daily runs).
 
     Ties are broken by serial_number so the queue is deterministic.
     """
+    last = dict(recent or {})
+    in_queue = pd.Series(False, index=df.index)
+    order = df.sort_values(["score_date", score_col, "serial_number"],
+                           ascending=[True, False, True], kind="stable")
+    for day, rows in order.groupby("score_date", sort=True):
+        day = pd.Timestamp(day)
+        picked = 0
+        for idx, serial in zip(rows.index, rows["serial_number"], strict=True):
+            prev = last.get(serial)
+            if prev is not None and (day - pd.Timestamp(prev)).days < cooldown_days:
+                continue
+            in_queue.at[idx] = True
+            last[serial] = day
+            picked += 1
+            if picked == queue_size:
+                break
+    return in_queue
+
+
+def rank_daily(scored: pd.DataFrame, queue_size: int = QUEUE_SIZE, recent_model: dict = None,
+               recent_rule: dict = None) -> pd.DataFrame:
+    """Rank drives within each score_date and mark the model queue and an equal-size rule queue."""
     out = scored.sort_values(["score_date", "risk_score", "serial_number"],
                              ascending=[True, False, True], kind="stable").copy()
     out["risk_rank"] = out.groupby("score_date").cumcount() + 1
-    out["in_queue"] = out["risk_rank"] <= queue_size
+    out["in_queue"] = build_queue(out, "risk_score", queue_size, recent=recent_model)
+    if "counter_sum" in out:
+        out["rule_in_queue"] = build_queue(out, "counter_sum", queue_size, recent=recent_rule)
     return out
+
+
+def drive_level_catch(df: pd.DataFrame, queue_col: str) -> dict:
+    """Distinct drives queued, and how many drives that failed were queued in their final 7 days."""
+    q = df[df[queue_col]]
+    failed = df.loc[df["label_fail_7d"] == 1, "serial_number"].nunique()
+    caught = q.loc[q["label_fail_7d"] == 1, "serial_number"].nunique()
+    return {"distinct_drives_queued": int(q["serial_number"].nunique()), "failed_drives": int(failed),
+            "failed_drives_caught": int(caught), "catch_rate": caught / failed if failed else 0.0,
+            "queued_drive_hit_rate": float(q.groupby("serial_number")["label_fail_7d"].max().mean())}
 
 
 def psi(expected_counts, actual_counts, eps: float = 1e-6) -> float:
@@ -96,17 +134,13 @@ def queue_performance_daily(risk: DataFrame, gold: DataFrame, last_labeled_date)
     """For days whose 7-day outcome is known: how many queued drives actually failed.
 
     Compares the model queue with an equal-size queue taken from the error-counter rule,
-    ranked by the summed counters.
+    ranked by the summed counters under the same cooldown policy.
     """
-    from pyspark.sql import Window
-
     labels = gold.select(F.col("date").alias("score_date"), "serial_number", "label_fail_7d")
     labeled = (risk.filter(F.col("score_date") <= F.lit(last_labeled_date))
                    .join(labels, ["score_date", "serial_number"], "left")
                    .fillna({"label_fail_7d": 0}))
-    w = Window.partitionBy("score_date").orderBy(F.col("counter_sum").desc(), F.col("serial_number"))
-    rule = (labeled.withColumn("rule_rank", F.row_number().over(w))
-                   .filter(F.col("rule_rank") <= QUEUE_SIZE)
+    rule = (labeled.filter("rule_in_queue")
                    .groupBy("score_date").agg(F.sum("label_fail_7d").alias("rule_hits")))
     model = (labeled.filter("in_queue").groupBy("score_date")
                     .agg(F.count("*").alias("queue_size"), F.sum("label_fail_7d").alias("model_hits")))

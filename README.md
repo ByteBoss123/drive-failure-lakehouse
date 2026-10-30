@@ -71,42 +71,52 @@ comes from `reports/pipeline_metrics.json` and `reports/model_metrics.json`.
   The rule now nulls the reading, sets `temp_sensor_invalid`, and keeps the row, so all 460
   failures reach silver.
 
+**Headline: daily replacement queue** (`reports/scoring_metrics.json`)
+
+With 10 inspection slots a day from Jul 1 to Sep 24, and a 7-day cooldown so an inspected drive is
+not queued again the next day, here is how many of the 148 drives that failed in that window were
+queued during their final 7 days:
+
+| Queue ranked by | Failing drives caught | Distinct drives inspected | Share of inspected drives that failed |
+| --- | --- | --- | --- |
+| Model | **75 of 148 (50.7%)** | 387 | 19.4% |
+| SMART error-counter rule | 49 of 148 (33.1%) | 140 | 35.0% |
+
+With the same daily inspection capacity, the model catches 26 more failing drives (+53%). It spreads
+inspections over more drives; the rule keeps re-checking a smaller set of drives with high error
+counts, which are more often bad but miss most new failures. Score drift stayed below the 0.2 PSI
+alert threshold every day (max 0.18).
+
 **Model: predict failure within 7 days** (`lakehouse/model.py`)
 
-* Temporal split: train on Jan to Jun, test on Jul 1 to Sep 24 (the last 6 days are excluded
-  because their 7-day labels are not yet observable).
-* Training uses all 2,141 positive rows and a deterministic 5% hash sample of negatives
-  (275,421 rows). Testing uses all 2,220,122 test drive-days with their real 0.044% positive rate.
-* HistGradientBoosting: ROC-AUC 0.767, PR-AUC 0.126. Ranking drives by the sum of the four
-  SMART error counters gives a similar ROC-AUC (0.772) but a PR-AUC of only 0.024.
-* With a small alert budget the model is far more precise: in its top 500 test alerts,
-  28.8% precede a failure within 7 days, against 4.8% for the counter-sum ranking.
-* With a broad budget it does not beat the simple rule. Alerting on any nonzero error counter
-  flags 63,420 drive-days and catches 56.3% of failure rows (98 of 148 failed drives). The model
-  at the same budget catches 47.0% (94 drives).
-* Takeaway: the model is useful for a short, high-confidence replacement queue. The rule is
-  better for broad coverage. The two are complementary, not a replacement.
-**Daily replacement queue** (`lakehouse/monitoring.py`, `reports/scoring_metrics.json`)
-
-* Every drive is scored each day from Jul 1 to Sep 30 (92 days, 2,368,010 drive-days), and the
-  top 10 form that day's queue.
-* Over the 86 days whose 7-day outcome is known, 188 of 860 queued drive-days (21.9%) failed
-  within 7 days. An equal-size daily queue ranked by the SMART error counters caught 29 (3.4%).
-* Score drift stayed below the 0.2 PSI alert threshold on every day (max 0.13).
-
-* Reproducibility fix: the first Databricks run disagreed with the local model on PR-AUC
-  (0.133 vs 0.128) despite identical training rows. The cause was row order: scikit-learn's
-  automatic early stopping holds out a validation split by row position, and Spark and delta-rs
-  return rows in different orders. Input is now sorted by `(serial_number, date)` before training.
+* Temporal split with a 7-day embargo: train on rows whose labels resolve before Jun 24, test on
+  Jul 1 to Sep 24 (the last 6 days are excluded because their 7-day labels are not yet observable).
+* Training uses all positive rows and a deterministic 5% hash sample of negatives (267,136 rows).
+  Testing uses all 2,220,122 test drive-days with their real 0.044% positive rate.
+* Model selection used only a May-June validation window (`select_model.py`,
+  `reports/selection.json`): 2 feature sets x 3 tree sizes x 2 learning rates, chosen by failing
+  drives caught by the daily queue. The extra v2 trend features did not help on validation and
+  were not selected. The test window was evaluated once, after selection.
+* HistGradientBoosting: ROC-AUC 0.763, PR-AUC 0.132. Ranking drives by the sum of the four SMART
+  error counters gives a similar ROC-AUC (0.772) but a PR-AUC of only 0.024. In its top 500 test
+  alerts, 31.0% precede a failure within 7 days, against 4.8% for the counter-sum ranking.
+* With a very broad budget the simple rule still wins: alerting on any nonzero error counter flags
+  63,420 drive-days and catches 56.3% of failure rows; the model at the same budget catches 50.5%.
+  The model is for a short, high-confidence queue; the rule gives broad coverage.
+* Reproducibility fix: an early Databricks run disagreed with the local model despite identical
+  training rows. The cause was row order: scikit-learn's automatic early stopping holds out a
+  validation split by row position, and Spark and delta-rs return rows in different orders.
+  Input is now sorted by `(serial_number, date)` before training.
 
 ## Run locally
 
 ```bash
 pip install -r requirements.txt
 # put the 273 daily CSVs in data/raw_daily/ (see data/raw_manifest.csv)
-python -m pytest -q tests          # 8 tests: transforms, ranking, PSI, queue precision, drift
+python -m pytest -q tests          # 10 tests: transforms, ranking, cooldown queue, PSI, queue precision, drift
 python run_local.py                # bronze -> silver -> gold, writes reports/pipeline_metrics.json
 python train_local.py              # model + MLflow (sqlite:///mlflow.db), writes reports/model_metrics.json
+python select_model.py             # validation-only model selection, writes reports/selection.json
 python score_local.py              # daily queue + monitoring, writes reports/scoring_metrics.json
 python scripts/build_shared_notebooks.py   # regenerate databricks/lakehouse_*.py after code changes
 ```

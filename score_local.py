@@ -13,7 +13,14 @@ import pyarrow.parquet as pq
 from deltalake import DeltaTable
 
 from lakehouse.model import TRAIN_END, train_and_evaluate
-from lakehouse.monitoring import QUEUE_SIZE, queue_performance_daily, score_drift_daily, score_frame
+from lakehouse.monitoring import (
+    COOLDOWN_DAYS,
+    QUEUE_SIZE,
+    drive_level_catch,
+    queue_performance_daily,
+    score_drift_daily,
+    score_frame,
+)
 from lakehouse.transforms import FEATURE_COLS, LABEL_HORIZON_DAYS
 from run_local import spark_session
 
@@ -41,7 +48,13 @@ last_labeled = (gold["date"].max() - __import__("datetime").timedelta(days=LABEL
 perf = queue_performance_daily(risk_df, gold_df, last_labeled).toPandas()
 drift = score_drift_daily(risk_df)
 
+labels = gold[["date", "serial_number", "label_fail_7d"]].rename(columns={"date": "score_date"})
+labeled = risk.merge(labels, on=["score_date", "serial_number"])
+labeled = labeled[labeled["score_date"] <= last_labeled]
 m = {
+    "cooldown_days": COOLDOWN_DAYS,
+    "model_drive_level": drive_level_catch(labeled, "in_queue"),
+    "rule_drive_level": drive_level_catch(labeled, "rule_in_queue"),
     "score_days": int(risk["score_date"].nunique()),
     "risk_rows": int(len(risk)),
     "queue_size_per_day": QUEUE_SIZE,

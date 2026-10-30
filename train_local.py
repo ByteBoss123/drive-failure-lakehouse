@@ -22,6 +22,7 @@ mlflow.set_tracking_uri(f"sqlite:///{ROOT / 'mlflow.db'}")
 mlflow.set_experiment("drive-failure-7d")
 with mlflow.start_run(run_name="hgb_temporal_split") as run:
     model, metrics = train_and_evaluate(df, data_end)
+    metrics.pop("test_scores")
     mlflow.log_params({**PARAMS, "train_end": TRAIN_END, "neg_sample_pct": NEG_SAMPLE_PCT,
                        "features": ",".join(FEATURE_COLS)})
     mlflow.log_metrics({k: v for k, v in metrics.items() if isinstance(v, (int, float))})

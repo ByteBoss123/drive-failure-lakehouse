@@ -1,14 +1,29 @@
 {
+  "cooldown_days": 7,
+  "model_drive_level": {
+    "distinct_drives_queued": 387,
+    "failed_drives": 148,
+    "failed_drives_caught": 75,
+    "catch_rate": 0.5067567567567568,
+    "queued_drive_hit_rate": 0.1937984496124031
+  },
+  "rule_drive_level": {
+    "distinct_drives_queued": 140,
+    "failed_drives": 148,
+    "failed_drives_caught": 49,
+    "catch_rate": 0.3310810810810811,
+    "queued_drive_hit_rate": 0.35
+  },
   "score_days": 92,
   "risk_rows": 2368010,
   "queue_size_per_day": 10,
   "labeled_days": 86,
   "last_labeled_date": "2018-09-24",
   "queued_drive_days": 860,
-  "model_queue_hits": 188,
-  "rule_queue_hits": 29,
-  "model_queue_precision": 0.2186046511627907,
-  "rule_queue_precision": 0.03372093023255814,
-  "max_psi": 0.12890972030333755,
+  "model_queue_hits": 75,
+  "rule_queue_hits": 49,
+  "model_queue_precision": 0.0872093023255814,
+  "rule_queue_precision": 0.056976744186046514,
+  "max_psi": 0.17603759012663717,
   "drift_alert_days": 0
 }

@@ -5,7 +5,15 @@ import pandas as pd
 import pytest
 from pyspark.sql import SparkSession
 
-from lakehouse.monitoring import QUEUE_SIZE, psi, queue_performance_daily, rank_daily, score_drift_daily
+from lakehouse.monitoring import (
+    QUEUE_SIZE,
+    build_queue,
+    drive_level_catch,
+    psi,
+    queue_performance_daily,
+    rank_daily,
+    score_drift_daily,
+)
 
 
 @pytest.fixture(scope="module")
@@ -29,6 +37,25 @@ def test_rank_daily_queue_and_ties():
     assert out.in_queue.sum() == 3 and out.risk_rank.max() == 12
 
 
+def test_cooldown_skips_recently_queued_drives():
+    days = [dt.date(2018, 7, 1) + dt.timedelta(days=k) for k in range(9)]
+    rows = [{"score_date": d, "serial_number": s, "score": sc}
+            for d in days for s, sc in (("A", 0.9), ("B", 0.8), ("C", 0.1))]
+    df = pd.DataFrame(rows)
+    df["q"] = build_queue(df, "score", queue_size=1, cooldown_days=7)
+    picked = df[df.q].set_index("score_date").serial_number.to_dict()
+    # A, then B and C while A cools down; nothing is eligible on days 3-6; A returns after 7 days.
+    assert [picked.get(d) for d in days] == ["A", "B", "C", None, None, None, None, "A", "B"]
+
+
+def test_drive_level_catch_counts_distinct_drives():
+    df = pd.DataFrame({"serial_number": ["A", "A", "B", "C"], "label_fail_7d": [1, 1, 0, 1],
+                       "q": [True, True, True, False]})
+    r = drive_level_catch(df, "q")
+    assert r["distinct_drives_queued"] == 2 and r["failed_drives"] == 2
+    assert r["failed_drives_caught"] == 1 and r["queued_drive_hit_rate"] == 0.5
+
+
 def test_psi_identical_is_zero_and_shift_is_positive():
     a = [100] * 10
     assert psi(a, a) == pytest.approx(0.0)
@@ -45,7 +72,8 @@ def test_queue_performance_counts_hits_against_labels(spark):
     for d in (d1, d2):
         for i in range(QUEUE_SIZE + 5):
             risk.append({"score_date": d, "serial_number": f"S{i}", "risk_score": 1.0 - i / 100,
-                         "counter_sum": float(i), "in_queue": i < QUEUE_SIZE})
+                         "counter_sum": float(i), "in_queue": i < QUEUE_SIZE,
+                         "rule_in_queue": i >= 5})
     gold = [{"date": d1, "serial_number": "S0", "label_fail_7d": 1},
             {"date": d1, "serial_number": "S14", "label_fail_7d": 1},
             {"date": d2, "serial_number": "S1", "label_fail_7d": 1}]
@@ -54,7 +82,7 @@ def test_queue_performance_counts_hits_against_labels(spark):
     assert list(perf) == [d1]                      # d2 is past the last labeled date
     assert perf[d1].queue_size == QUEUE_SIZE
     assert perf[d1].model_hits == 1                # S0 is in the model queue
-    assert perf[d1].rule_hits == 1                 # rule ranks by counter_sum desc: S14 is top
+    assert perf[d1].rule_hits == 1                 # S14 is in the rule queue
 
 
 def test_score_drift_flags_shifted_day(spark):

@@ -1,6 +1,7 @@
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+extend-exclude = ["databricks"]  # notebooks use Databricks globals (spark, dbutils)
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B"]

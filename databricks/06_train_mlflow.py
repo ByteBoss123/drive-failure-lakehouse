@@ -42,6 +42,7 @@ mlflow.set_experiment(EXPERIMENT)
 registered = None
 with mlflow.start_run(run_name="hgb_temporal_split") as run:
     model, metrics = train_and_evaluate(pdf, data_end)
+    metrics.pop("test_scores")
     mlflow.log_params({**PARAMS, "train_end": TRAIN_END, "neg_sample_pct": NEG_SAMPLE_PCT})
     mlflow.log_metrics({k: v for k, v in metrics.items() if isinstance(v, (int, float))})
     sample = pdf[FEATURE_COLS].head(100)
