@@ -87,6 +87,12 @@ inspections over more drives; the rule keeps re-checking a smaller set of drives
 counts, which are more often bad but miss most new failures. Score drift stayed below the 0.2 PSI
 alert threshold every day (max 0.18).
 
+Tested and rejected: a hybrid queue that gives some of the 10 daily slots to the rule
+(`hybrid_eval.py`, `reports/hybrid_selection.json`). On the May-June validation window the best
+split (7 model / 3 rule) caught 46 failing drives against 44 for the model alone, a difference
+within noise. On the test window it caught 70 of 148, fewer than the model alone (75), so the
+production queue stays model-only.
+
 **Model: predict failure within 7 days** (`lakehouse/model.py`)
 
 * Temporal split with a 7-day embargo: train on rows whose labels resolve before Jun 24, test on
