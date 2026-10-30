@@ -113,10 +113,11 @@ alert threshold every day (max 0.18).
 ```bash
 pip install -r requirements.txt
 # put the 273 daily CSVs in data/raw_daily/ (see data/raw_manifest.csv)
-python -m pytest -q tests          # 10 tests: transforms, ranking, cooldown queue, PSI, queue precision, drift
+python -m pytest -q tests          # 11 tests: transforms, ranking, cooldown and hybrid queues, PSI, queue precision, drift
 python run_local.py                # bronze -> silver -> gold, writes reports/pipeline_metrics.json
 python train_local.py              # model + MLflow (sqlite:///mlflow.db), writes reports/model_metrics.json
 python select_model.py             # validation-only model selection, writes reports/selection.json
+python hybrid_eval.py              # model/rule slot split, chosen on validation, writes reports/hybrid_selection.json
 python score_local.py              # daily queue + monitoring, writes reports/scoring_metrics.json
 python scripts/build_shared_notebooks.py   # regenerate databricks/lakehouse_*.py after code changes
 ```
@@ -141,7 +142,7 @@ Import the notebooks in `databricks/` into one workspace folder, then run them i
 Then create the daily job from `jobs/daily_pipeline.json`. It lands one new file per day
 (`next_day`), merges it, rebuilds gold, scores the newest day, and refreshes monitoring.
 
-**Status (2026-10-30):** notebooks 01 to 07 run end to end on Databricks Free Edition (serverless, Unity Catalog), with every pipeline and model check matching the local reference. Scoring (08), monitoring (09) and the scheduled job are being verified.
+**Status (2026-10-30):** everything above runs on Databricks Free Edition (serverless, Unity Catalog): notebooks 01-09, model version 3 registered in Unity Catalog, and the scheduled `drive-lakehouse-daily` job. `07_reconcile` matches all 20 pipeline, model and scoring checks against the local reference.
 
 ## Limitations
 

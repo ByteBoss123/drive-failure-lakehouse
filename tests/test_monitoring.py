@@ -7,6 +7,7 @@ from pyspark.sql import SparkSession
 
 from lakehouse.monitoring import (
     QUEUE_SIZE,
+    build_hybrid_queue,
     build_queue,
     drive_level_catch,
     psi,
@@ -95,3 +96,14 @@ def test_score_drift_flags_shifted_day(spark):
                  for i, s in enumerate(scores)]
     out = score_drift_daily(_risk(spark, rows), reference_days=7)
     assert out.drift_alert.tolist() == [False] * 7 + [True]
+
+
+def test_hybrid_queue_splits_slots_and_shares_cooldown():
+    d = dt.date(2018, 7, 1)
+    df = pd.DataFrame({"score_date": [d] * 4, "serial_number": ["A", "B", "C", "D"],
+                       "m": [0.9, 0.8, 0.1, 0.0], "r": [0.0, 0.0, 5.0, 9.0]})
+    q = build_hybrid_queue(df, "m", "r", model_slots=1, queue_size=2)
+    assert df[q].serial_number.tolist() == ["A", "D"]     # top model drive + top rule drive
+    recent = {"A": pd.Timestamp(d) - pd.Timedelta(days=1)}  # A is cooling down
+    q2 = build_hybrid_queue(df, "m", "r", model_slots=1, queue_size=2, recent=recent)
+    assert sorted(df[q2].serial_number.tolist()) == ["B", "D"]

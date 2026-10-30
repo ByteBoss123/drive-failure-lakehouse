@@ -59,6 +59,37 @@ def build_queue(df: pd.DataFrame, score_col: str, queue_size: int = QUEUE_SIZE,
     return in_queue
 
 
+def _take(ranked: pd.DataFrame, n: int, day: pd.Timestamp, picked: list, last: dict, cooldown_days: int):
+    """Append up to `n` total picks from `ranked`, skipping picked or cooling-down drives."""
+    for idx, serial in zip(ranked.index, ranked["serial_number"], strict=True):
+        if len(picked) >= n:
+            return
+        prev = last.get(serial)
+        if idx in picked or (prev is not None and (day - pd.Timestamp(prev)).days < cooldown_days):
+            continue
+        picked.append(idx)
+        last[serial] = day
+
+
+def build_hybrid_queue(df: pd.DataFrame, model_col: str, rule_col: str, model_slots: int,
+                       queue_size: int = QUEUE_SIZE, cooldown_days: int = COOLDOWN_DAYS,
+                       recent: dict = None) -> pd.Series:
+    """Daily queue mixing two rankings: `model_slots` drives from the model ranking, the rest from
+    the rule ranking, with one shared cooldown. If one ranking runs out, the other fills the slots."""
+    last = dict(recent or {})
+    in_queue = pd.Series(False, index=df.index)
+    for day, rows in df.groupby("score_date", sort=True):
+        day = pd.Timestamp(day)
+        by_model = rows.sort_values([model_col, "serial_number"], ascending=[False, True], kind="stable")
+        by_rule = rows.sort_values([rule_col, "serial_number"], ascending=[False, True], kind="stable")
+        picked = []
+        _take(by_model, model_slots, day, picked, last, cooldown_days)
+        _take(by_rule, queue_size, day, picked, last, cooldown_days)
+        _take(by_model, queue_size, day, picked, last, cooldown_days)
+        in_queue.loc[picked] = True
+    return in_queue
+
+
 def rank_daily(scored: pd.DataFrame, queue_size: int = QUEUE_SIZE, recent_model: dict = None,
                recent_rule: dict = None) -> pd.DataFrame:
     """Rank drives within each score_date and mark the model queue and an equal-size rule queue."""

@@ -1,0 +1,105 @@
+{
+  "selected_model_slots": 7,
+  "validation": {
+    "0": {
+      "distinct_drives_queued": 118,
+      "failed_drives": 105,
+      "failed_drives_caught": 33,
+      "catch_rate": 0.3142857142857143,
+      "queued_drive_hit_rate": 0.2796610169491525
+    },
+    "1": {
+      "distinct_drives_queued": 131,
+      "failed_drives": 105,
+      "failed_drives_caught": 37,
+      "catch_rate": 0.3523809523809524,
+      "queued_drive_hit_rate": 0.2824427480916031
+    },
+    "2": {
+      "distinct_drives_queued": 152,
+      "failed_drives": 105,
+      "failed_drives_caught": 44,
+      "catch_rate": 0.41904761904761906,
+      "queued_drive_hit_rate": 0.2894736842105263
+    },
+    "3": {
+      "distinct_drives_queued": 176,
+      "failed_drives": 105,
+      "failed_drives_caught": 44,
+      "catch_rate": 0.41904761904761906,
+      "queued_drive_hit_rate": 0.25
+    },
+    "4": {
+      "distinct_drives_queued": 190,
+      "failed_drives": 105,
+      "failed_drives_caught": 43,
+      "catch_rate": 0.4095238095238095,
+      "queued_drive_hit_rate": 0.22631578947368422
+    },
+    "5": {
+      "distinct_drives_queued": 210,
+      "failed_drives": 105,
+      "failed_drives_caught": 45,
+      "catch_rate": 0.42857142857142855,
+      "queued_drive_hit_rate": 0.21428571428571427
+    },
+    "6": {
+      "distinct_drives_queued": 234,
+      "failed_drives": 105,
+      "failed_drives_caught": 46,
+      "catch_rate": 0.4380952380952381,
+      "queued_drive_hit_rate": 0.19658119658119658
+    },
+    "7": {
+      "distinct_drives_queued": 247,
+      "failed_drives": 105,
+      "failed_drives_caught": 46,
+      "catch_rate": 0.4380952380952381,
+      "queued_drive_hit_rate": 0.1862348178137652
+    },
+    "8": {
+      "distinct_drives_queued": 262,
+      "failed_drives": 105,
+      "failed_drives_caught": 44,
+      "catch_rate": 0.41904761904761906,
+      "queued_drive_hit_rate": 0.16793893129770993
+    },
+    "9": {
+      "distinct_drives_queued": 273,
+      "failed_drives": 105,
+      "failed_drives_caught": 44,
+      "catch_rate": 0.41904761904761906,
+      "queued_drive_hit_rate": 0.16117216117216118
+    },
+    "10": {
+      "distinct_drives_queued": 293,
+      "failed_drives": 105,
+      "failed_drives_caught": 44,
+      "catch_rate": 0.41904761904761906,
+      "queued_drive_hit_rate": 0.15017064846416384
+    }
+  },
+  "test": {
+    "model_only (10/0)": {
+      "distinct_drives_queued": 387,
+      "failed_drives": 148,
+      "failed_drives_caught": 75,
+      "catch_rate": 0.5067567567567568,
+      "queued_drive_hit_rate": 0.1937984496124031
+    },
+    "hybrid (7/3)": {
+      "distinct_drives_queued": 329,
+      "failed_drives": 148,
+      "failed_drives_caught": 70,
+      "catch_rate": 0.47297297297297297,
+      "queued_drive_hit_rate": 0.2127659574468085
+    },
+    "rule_only (0/10)": {
+      "distinct_drives_queued": 140,
+      "failed_drives": 148,
+      "failed_drives_caught": 49,
+      "catch_rate": 0.3310810810810811,
+      "queued_drive_hit_rate": 0.35
+    }
+  }
+}
