@@ -20,8 +20,12 @@ PARAMS = dict(max_iter=300, learning_rate=0.05, max_leaf_nodes=31,
 
 def split(df: pd.DataFrame, data_end: str):
     """Temporal split; drop the last horizon of days whose labels are censored."""
+    # Sort first: HistGradientBoosting's automatic early stopping holds out a random
+    # validation split by row position, so input order must be fixed for the model to
+    # be reproducible across engines (Spark toPandas vs delta-rs return rows in different orders).
     df = df.copy()
     df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values(["serial_number", "date"], kind="stable").reset_index(drop=True)
     last_labeled = pd.Timestamp(data_end) - pd.Timedelta(days=LABEL_HORIZON_DAYS - 1)
     df = df[df["date"] <= last_labeled]
     train = df[df["date"] < TRAIN_END]

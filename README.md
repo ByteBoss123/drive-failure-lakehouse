@@ -63,15 +63,19 @@ comes from `reports/pipeline_metrics.json` and `reports/model_metrics.json`.
   because their 7-day labels are not yet observable).
 * Training uses all 2,141 positive rows and a deterministic 5% hash sample of negatives
   (275,421 rows). Testing uses all 2,220,122 test drive-days with their real 0.044% positive rate.
-* HistGradientBoosting: ROC-AUC 0.770, PR-AUC 0.128. Ranking drives by the sum of the four
-  SMART error counters gives ROC-AUC 0.772 and PR-AUC 0.024.
+* HistGradientBoosting: ROC-AUC 0.767, PR-AUC 0.126. Ranking drives by the sum of the four
+  SMART error counters gives a similar ROC-AUC (0.772) but a PR-AUC of only 0.024.
 * With a small alert budget the model is far more precise: in its top 500 test alerts,
-  29.6% precede a failure within 7 days, against 4.8% for the counter-sum ranking.
+  28.8% precede a failure within 7 days, against 4.8% for the counter-sum ranking.
 * With a broad budget it does not beat the simple rule. Alerting on any nonzero error counter
   flags 63,420 drive-days and catches 56.3% of failure rows (98 of 148 failed drives). The model
-  at the same budget catches 49.0% (94 drives).
+  at the same budget catches 47.0% (94 drives).
 * Takeaway: the model is useful for a short, high-confidence replacement queue. The rule is
   better for broad coverage. The two are complementary, not a replacement.
+* Reproducibility fix: the first Databricks run disagreed with the local model on PR-AUC
+  (0.133 vs 0.128) despite identical training rows. The cause was row order: scikit-learn's
+  automatic early stopping holds out a validation split by row position, and Spark and delta-rs
+  return rows in different orders. Input is now sorted by `(serial_number, date)` before training.
 
 ## Run locally
 
@@ -98,9 +102,7 @@ Add this repository as a Git folder, then run the notebooks in `databricks/` in 
 6. `06_train_mlflow`: same model code, logged to MLflow and registered in Unity Catalog.
 7. `07_reconcile`: compares Databricks counts and metrics with the local reference JSON.
 
-**Status:** the Databricks notebooks have not been run yet. They reuse the tested transform
-and model code, and `07_reconcile` checks the Databricks results against the verified local
-figures above.
+**Status:** run end to end on Databricks Free Edition (serverless, Unity Catalog) on 2026-10-30.
 
 ## Limitations
 
